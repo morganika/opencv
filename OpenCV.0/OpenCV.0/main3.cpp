@@ -26,22 +26,34 @@ void WriteLineInfo(Vec4i lineInfo){
     
 }
 
-void DrawPoint(Mat* image, int xcoord, int ycoord) {
+void DrawPoint(Mat* image, int xcoord, int ycoord, vector<int> bgr) {
     
     for (int i = xcoord-2; i < xcoord+2; i++) {
         for (int j = ycoord-2; j < ycoord+2; j++) {
-            //(*image).at<Vec3b>(j, i)[0] = 255;
-            (*image).at<Vec3b>(j, i)[0] = 255;
-            (*image).at<Vec3b>(j, i)[1] = 100;
-            (*image).at<Vec3b>(j, i)[2] = 255;
+            (*image).at<Vec3b>(j, i)[0] = bgr[0];
+            (*image).at<Vec3b>(j, i)[1] = bgr[1];
+            (*image).at<Vec3b>(j, i)[2] = bgr[2];
         }
     }
 }
 
 void DrawLine(Mat* image, int x1, int y1, int x2, int y2){
     
+    vector<int> color(3);
+    
+    int a = rand() % 156;
+    
+    color[0] = 100 + a;
+    a = rand() % (156 - a);
+    color[1] = 100 + a;
+    a = rand() % (156 - a);
+    color[2] = 100 + a;
+    
     for (int i = 0; i < 51; i++){
-        DrawPoint(image, x1 * i / 50 + x2 * (50 - i) / 50, y1 * i / 50 + y2 * (50 - i) / 50);
+        DrawPoint(image,
+                  x1 * i / 50 + x2 * (50 - i) / 50,
+                  y1 * i / 50 + y2 * (50 - i) / 50,
+                  color);
     }
 }
 
@@ -58,7 +70,7 @@ int main(){
     //imshow("showing something charming(2)", cannyPaper); //вывод изображения краёв
     
     vector<Vec4i> lines;
-    HoughLinesP(cannyPaper, lines, 0.1, 2*CV_PI/180, 4, 26, 6);
+    HoughLinesP(cannyPaper, lines, 1, 2*CV_PI/180, 8, 70, 15);
     cout << endl << lines.size() << endl;
     
     for (int i = 0; i < lines.size(); i++){
