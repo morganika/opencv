@@ -18,8 +18,15 @@
 using namespace cv;
 using namespace std;
 
-bool PixelEqual(Vec3i first, Vec3i second){
-    return first[0] == second[0] && first[1] == second[1] && first[2] == second[2];
+void DrawPoint(Mat* image, int xcoord, int ycoord, Vec3i bgr) {
+
+    for (int i = xcoord-2; i < xcoord+2; i++) {
+        for (int j = ycoord-2; j < ycoord+2; j++) {
+            (*image).at<Vec3b>(j, i)[0] = bgr[0];
+            (*image).at<Vec3b>(j, i)[1] = bgr[1];
+            (*image).at<Vec3b>(j, i)[2] = bgr[2];
+        }
+    }
 }
 
 Mat GluePictures(Mat first, Mat second, int borderPosition)
@@ -27,36 +34,59 @@ Mat GluePictures(Mat first, Mat second, int borderPosition)
     Mat result(second.rows, second.cols + borderPosition, CV_8UC3, Scalar(255, 255, 0));
     
     first(Rect(0,0,borderPosition, first.rows)).copyTo(result(Rect(0,0,borderPosition, first.rows)));
-    imshow("temp result 1", result);
-    
     second.copyTo(result(Rect(borderPosition, 0, second.cols, second.rows)));
     return result;
 }
 
-Mat VerySimpleСoncatenation(Mat first, Mat second) {
-    
-    int border = 0;
-    bool flag = false;
-
-    Vec3i secondPixel = second.at<Vec3b>(0,700);
-    
-    while (!flag && border < first.cols) {
-        Vec3i firstPixel = first.at<Vec3b>(border, 700);
-        
-        if (PixelEqual(firstPixel, secondPixel))
+vector<Point2i> FindMainPoints(Mat cannyImage){
+    std::vector<std::vector<cv::Point2i>> contours;
+    cv::findContours(cannyImage, contours, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_SIMPLE);
+    int biggestContourIdx = -1;
+    double biggestContourArea = 0;
+    for (int i = 0; i < contours.size(); ++i)
+    {
+        auto area = cv::contourArea(contours[i]);
+        if (area > biggestContourArea)
         {
-            if (
-            PixelEqual(first.at<Vec3i>(border, 720), second.at<Vec3i>(0, 720)) &&
-            PixelEqual(first.at<Vec3i>(border + 20, 700), second.at<Vec3i>(19, 700)) &&
-            PixelEqual(first.at<Vec3i>(border + 20, 720), second.at<Vec3i>(19, 720)))
-            {
-                break;
-            }
+            biggestContourArea = area;
+            biggestContourIdx = i;
         }
-        border++;
     }
     
-    return GluePictures(first, second, border);
+    //first solution:
+    std::vector<cv::Point2i> approx;
+    cv::approxPolyDP(contours[biggestContourIdx], approx, 30, true);
+
+    return approx;
+}
+
+Mat MainPointConcatenation(Mat first, Mat second)
+{
+    Mat cannyFirst, cannySecond;
+    Canny(first, cannyFirst, 60, 300, 3 );
+    Canny(second, cannySecond, 60, 300, 3  );
+    
+    imshow("First canny", cannyFirst);
+    imshow("Second canny", cannySecond);
+    
+    vector<Point2i> firstPoints = FindMainPoints(cannyFirst);
+    vector<Point2i> secondPoints = FindMainPoints(cannySecond);
+    
+    
+    for (int i = 0 ; i < firstPoints.size(); i++){
+        DrawPoint(&first, firstPoints[i].x, firstPoints[i].y, Vec3i(0,0,255));
+    }
+    
+    for (int i = 0 ; i < secondPoints.size(); i++){
+        DrawPoint(&second, secondPoints[i].x, secondPoints[i].y, Vec3i(0,0,255));
+    }
+    
+    imshow("vertex", first);
+    imshow("vertex 2", second);
+    
+    
+    
+    return GluePictures(first, second, first.cols-135);
 }
 
 int main(){
@@ -74,6 +104,8 @@ int main(){
     /*
     Mat simpleRes = VerySimpleСoncatenation(first, second);
     imshow("simpleRes", simpleRes);*/
+    
+    imshow("Result", MainPointConcatenation(first, second));
     
     waitKey(0);
     return 0;
