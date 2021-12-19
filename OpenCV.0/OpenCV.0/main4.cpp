@@ -30,12 +30,15 @@ void DrawPoint(Mat* image, int xcoord, int ycoord, Vec3i bgr)
     }
 }
 
-Mat GluePictures(Mat first, Mat second, int borderPosition)
+Mat GluePictures(Mat first, Mat second, int borderPosition, int secondBorderPos)
 {
-    Mat result(second.rows, second.cols + borderPosition, CV_8UC3, Scalar(255, 255, 0));
+    Mat result(second.rows, second.cols + borderPosition - secondBorderPos, CV_8UC3, Scalar(255, 255, 0));
     
-    first(Rect(0,0,borderPosition, first.rows)).copyTo(result(Rect(0,0,borderPosition, first.rows)));
-    second.copyTo(result(Rect(borderPosition, 0, second.cols, second.rows)));
+    first(Rect(0,0,borderPosition, first.rows))
+        .copyTo(result(Rect(0,0,borderPosition, first.rows)));
+    
+    second(Rect(secondBorderPos, 0, second.cols - secondBorderPos, second.rows))
+        .copyTo(result(Rect(borderPosition, 0, second.cols - secondBorderPos, second.rows)));
     return result;
 }
 
@@ -77,8 +80,6 @@ vector<double> GetAllDistance(vector<Point2i> points, int pointIndex)
     return result;
 }
 
-
-// Поскольку просто считать количество оказалось недостаточно добавляем в логику коэффициент близости
 int GetCorelation (vector<double> firstDistances, vector<double> secondDistances)
 {
     int resultCount = 0;
@@ -106,9 +107,11 @@ int GetCorelation (vector<double> firstDistances, vector<double> secondDistances
     return resultCount;
 }
 
-Point2i FindBestPoint(vector<Point2i> firstArray, vector<Point2i> secondArray)
+vector<Point2i> FindBestPoint(vector<Point2i> firstArray, vector<Point2i> secondArray)
 {
-    Point2i bestPoint = firstArray[0];
+    Point2i bestPointF = firstArray[0];
+    Point2i bestPointS = secondArray[0];
+
     int bestCorelation = 0;
     
     auto comp = [](const Point2i& a, const Point2i& b) { return a.x < b.x; };
@@ -132,13 +135,18 @@ Point2i FindBestPoint(vector<Point2i> firstArray, vector<Point2i> secondArray)
             int correlation = GetCorelation(fIter->second, sIter->second);
             if (correlation > bestCorelation)
             {
-                bestPoint = fIter->first;
+                bestPointF = fIter->first;
+                bestPointS = sIter->first;
                 bestCorelation = correlation;
             }
         }
     }
     
-    return bestPoint;
+    vector<Point2i> result;
+    result.push_back(bestPointF);
+    result.push_back(bestPointS);
+    
+    return result;
 }
 
 void ShowPoints(Mat image, vector<Point2i> points, string windName)
@@ -167,9 +175,15 @@ Mat MainPointConcatenation(Mat first, Mat second)
     // ShowPoints(second, secondPoints, "Точки второй картинки");
     
     // Поиск общей точки
-    Point2i jointPoint = FindBestPoint(firstPoints, secondPoints);
+    vector<Point2i> jointPoint = FindBestPoint(firstPoints, secondPoints);
     
-    return GluePictures(first, second, jointPoint.x);
+    DrawPoint(&first, jointPoint[0].x, jointPoint[0].y, Vec3i(0,255,0));
+    DrawPoint(&second, jointPoint[1].x, jointPoint[1].y, Vec3i(0,255,0));
+    
+    imshow("First Point", first);
+    imshow("Second Point", second);
+    
+    return GluePictures(first, second, jointPoint[0].x, jointPoint[1].x);
     
     // return GluePictures(first, second, first.cols-135);
 }
