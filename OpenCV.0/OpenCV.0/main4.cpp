@@ -18,7 +18,8 @@
 using namespace cv;
 using namespace std;
 
-void DrawPoint(Mat* image, int xcoord, int ycoord, Vec3i bgr) {
+void DrawPoint(Mat* image, int xcoord, int ycoord, Vec3i bgr)
+{
 
     for (int i = xcoord-2; i < xcoord+2; i++) {
         for (int j = ycoord-2; j < ycoord+2; j++) {
@@ -38,26 +39,116 @@ Mat GluePictures(Mat first, Mat second, int borderPosition)
     return result;
 }
 
-vector<Point2i> FindMainPoints(Mat cannyImage){
-    std::vector<std::vector<cv::Point2i>> contours;
-    cv::findContours(cannyImage, contours, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_SIMPLE);
-    int biggestContourIdx = -1;
-    double biggestContourArea = 0;
-    for (int i = 0; i < contours.size(); ++i)
-    {
-        auto area = cv::contourArea(contours[i]);
-        if (area > biggestContourArea)
-        {
-            biggestContourArea = area;
-            biggestContourIdx = i;
+double GetDistance(Point2i first, Point2i second)
+{
+    return sqrt(
+        (first.x - second.x) * (first.x - second.x) +
+        (first.y - second.y) * (first.y - second.y)
+                );
+}
+
+vector<Point2i> FindMainPoints(Mat cannyImage)
+{
+    vector<vector<Point2i>> contours;
+    findContours(cannyImage, contours, RETR_EXTERNAL, CHAIN_APPROX_SIMPLE);
+
+    std::vector<cv::Point2i> approx;
+    for (int i = 0; i < contours.size(); i++) {
+        std::vector<Point2i> contourPoints;
+        cv::approxPolyDP(contours[i], contourPoints, 30, true);
+        for (int j = 0; j < contourPoints.size(); j++)
+            approx.push_back(contourPoints[j]);
+}
+    return approx;
+}
+
+
+vector<double> GetAllDistance(vector<Point2i> points, int pointIndex)
+{
+    vector<double> result;
+    
+    for (int i = 0; i < points.size(); i++){
+        if (i != pointIndex)
+            result.push_back(GetDistance(points[pointIndex], points[i]));
+    }
+    
+    // По возрастанию
+    sort(result.begin(), result.end());
+    return result;
+}
+
+
+// Поскольку просто считать количество оказалось недостаточно добавляем в логику коэффициент близости
+int GetCorelation (vector<double> firstDistances, vector<double> secondDistances)
+{
+    int resultCount = 0;
+    
+    int fIter = 0;
+    int sIter = 0;
+    
+    while (fIter < firstDistances.size() && sIter < secondDistances.size()){
+        // Если различие значений меньше чем
+        if (fabs(firstDistances[fIter] - secondDistances[sIter]) < 0.001) {
+            resultCount++;
+            fIter++;
+            sIter++;
+        }
+        
+        if (firstDistances[fIter] > secondDistances[sIter]) {
+            sIter++;
+        }
+        
+        if (firstDistances[fIter] < secondDistances[sIter]) {
+            fIter++;
         }
     }
     
-    //first solution:
-    std::vector<cv::Point2i> approx;
-    cv::approxPolyDP(contours[biggestContourIdx], approx, 30, true);
+    return resultCount;
+}
 
-    return approx;
+Point2i FindBestPoint(vector<Point2i> firstArray, vector<Point2i> secondArray)
+{
+    Point2i bestPoint = firstArray[0];
+    int bestCorelation = 0;
+    
+    auto comp = [](const Point2i& a, const Point2i& b) { return a.x < b.x; };
+    map<Point2i, vector<double>, decltype(comp)> firstPointsDistances(comp);
+    map<Point2i, vector<double>, decltype(comp)> secondPointsDistances(comp);
+    
+    for (int i = 0; i < firstArray.size(); i++)
+    {
+        firstPointsDistances.insert(pair<Point2i, vector<double>>( firstArray[i], GetAllDistance(firstArray, i)));
+    }
+    
+    for (int i = 0; i < secondArray.size(); i++)
+    {
+        secondPointsDistances.insert(pair<Point2i, vector<double>>( secondArray[i], GetAllDistance(secondArray, i)));
+    }
+    
+    for (auto fIter = firstPointsDistances.begin(); fIter != firstPointsDistances.end(); fIter++ )
+    {
+        for (auto sIter = secondPointsDistances.begin(); sIter != secondPointsDistances.end(); sIter++)
+        {
+            int correlation = GetCorelation(fIter->second, sIter->second);
+            if (correlation > bestCorelation)
+            {
+                bestPoint = fIter->first;
+                bestCorelation = correlation;
+            }
+        }
+    }
+    
+    return bestPoint;
+}
+
+void ShowPoints(Mat image, vector<Point2i> points, string windName)
+{
+    for (int i = 0 ; i < points.size(); i++){
+        DrawPoint(&image, points[i].x, points[i].y, Vec3i(0,0,255));
+    }
+    
+    imshow(windName, image);
+    
 }
 
 Mat MainPointConcatenation(Mat first, Mat second)
@@ -72,24 +163,19 @@ Mat MainPointConcatenation(Mat first, Mat second)
     vector<Point2i> firstPoints = FindMainPoints(cannyFirst);
     vector<Point2i> secondPoints = FindMainPoints(cannySecond);
     
+    // ShowPoints(first, firstPoints, "Точки первой картинки");
+    // ShowPoints(second, secondPoints, "Точки второй картинки");
     
-    for (int i = 0 ; i < firstPoints.size(); i++){
-        DrawPoint(&first, firstPoints[i].x, firstPoints[i].y, Vec3i(0,0,255));
-    }
+    // Поиск общей точки
+    Point2i jointPoint = FindBestPoint(firstPoints, secondPoints);
     
-    for (int i = 0 ; i < secondPoints.size(); i++){
-        DrawPoint(&second, secondPoints[i].x, secondPoints[i].y, Vec3i(0,0,255));
-    }
+    return GluePictures(first, second, jointPoint.x);
     
-    imshow("vertex", first);
-    imshow("vertex 2", second);
-    
-    
-    
-    return GluePictures(first, second, first.cols-135);
+    // return GluePictures(first, second, first.cols-135);
 }
 
-int main(){
+int main()
+{
     
     Mat first = imread("/Users/mythings/Documents/С++/repocpp/OpenCV.0/OpenCV.0/1.jpg");
     imshow("first part", first); //вывод оригинального изображения 1
