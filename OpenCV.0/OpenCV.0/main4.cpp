@@ -18,7 +18,7 @@
 using namespace cv;
 using namespace std;
 
-void DrawPoint(Mat* image, int xcoord, int ycoord, Vec3i bgr)
+void DrawPoint(Mat* image, int xcoord, int ycoord, Vec3i bgr) // нарисовать 1 точку на изображении
 {
 
     for (int i = xcoord-2; i < xcoord+2; i++) {
@@ -30,7 +30,7 @@ void DrawPoint(Mat* image, int xcoord, int ycoord, Vec3i bgr)
     }
 }
 
-Mat GluePictures(Mat first, Mat second, int borderPosition, int secondBorderPos)
+Mat GluePictures(Mat first, Mat second, int borderPosition, int secondBorderPos) //склеиваем 2 изображения
 {
     Mat result(second.rows, second.cols + borderPosition - secondBorderPos, CV_8UC3, Scalar(255, 255, 0));
     
@@ -42,7 +42,7 @@ Mat GluePictures(Mat first, Mat second, int borderPosition, int secondBorderPos)
     return result;
 }
 
-double GetDistance(Point2i first, Point2i second)
+double GetDistance(Point2i first, Point2i second) //метод нахождения расстояния между 2мя точками
 {
     return sqrt(
         (first.x - second.x) * (first.x - second.x) +
@@ -50,15 +50,15 @@ double GetDistance(Point2i first, Point2i second)
                 );
 }
 
-vector<Point2i> FindMainPoints(Mat cannyImage)
+vector<Point2i> FindMainPoints(Mat cannyImage)  //ищем ключевые точки
 {
     vector<vector<Point2i>> contours;
     findContours(cannyImage, contours, RETR_EXTERNAL, CHAIN_APPROX_SIMPLE);
 
-    std::vector<cv::Point2i> approx;
+    vector<Point2i> approx;
     for (int i = 0; i < contours.size(); i++) {
-        std::vector<Point2i> contourPoints;
-        cv::approxPolyDP(contours[i], contourPoints, 30, true);
+        vector<Point2i> contourPoints;
+        approxPolyDP(contours[i], contourPoints, 30, true);
         for (int j = 0; j < contourPoints.size(); j++)
             approx.push_back(contourPoints[j]);
 }
@@ -66,7 +66,7 @@ vector<Point2i> FindMainPoints(Mat cannyImage)
 }
 
 
-vector<double> GetAllDistance(vector<Point2i> points, int pointIndex)
+vector<double> GetAllDistance(vector<Point2i> points, int pointIndex)  //массив элементов полученных getdistance
 {
     vector<double> result;
     
@@ -80,7 +80,7 @@ vector<double> GetAllDistance(vector<Point2i> points, int pointIndex)
     return result;
 }
 
-int GetCorelation (vector<double> firstDistances, vector<double> secondDistances)
+int GetCorelation (vector<double> firstDistances, vector<double> secondDistances) //сравниваем
 {
     int resultCount = 0;
     
@@ -93,6 +93,7 @@ int GetCorelation (vector<double> firstDistances, vector<double> secondDistances
             resultCount++;
             fIter++;
             sIter++;
+            continue;
         }
         
         if (firstDistances[fIter] > secondDistances[sIter]) {
@@ -107,20 +108,20 @@ int GetCorelation (vector<double> firstDistances, vector<double> secondDistances
     return resultCount;
 }
 
-vector<Point2i> FindBestPoint(vector<Point2i> firstArray, vector<Point2i> secondArray)
+vector<Point2i> FindBestPoint(vector<Point2i> firstArray, vector<Point2i> secondArray) //находим из этих точек лучшую
 {
     Point2i bestPointF = firstArray[0];
     Point2i bestPointS = secondArray[0];
 
     int bestCorelation = 0;
     
-    auto comp = [](const Point2i& a, const Point2i& b) { return a.x < b.x; };
-    map<Point2i, vector<double>, decltype(comp)> firstPointsDistances(comp);
+    auto comp = [](const Point2i& a, const Point2i& b) { return a.x < b.x; }; //метод comp - сравнивает между собой 2 точки
+    map<Point2i, vector<double>, decltype(comp)> firstPointsDistances(comp); //map - набор связей point+расстояние для других точек
     map<Point2i, vector<double>, decltype(comp)> secondPointsDistances(comp);
     
     for (int i = 0; i < firstArray.size(); i++)
     {
-        firstPointsDistances.insert(pair<Point2i, vector<double>>( firstArray[i], GetAllDistance(firstArray, i)));
+        firstPointsDistances.insert(pair<Point2i, vector<double>>( firstArray[i], GetAllDistance(firstArray, i))); //высчитываем массив дистанций для каждого элемента массива
     }
     
     for (int i = 0; i < secondArray.size(); i++)
@@ -128,11 +129,11 @@ vector<Point2i> FindBestPoint(vector<Point2i> firstArray, vector<Point2i> second
         secondPointsDistances.insert(pair<Point2i, vector<double>>( secondArray[i], GetAllDistance(secondArray, i)));
     }
     
-    for (auto fIter = firstPointsDistances.begin(); fIter != firstPointsDistances.end(); fIter++ )
+    for (auto fIter = firstPointsDistances.begin(); fIter != firstPointsDistances.end(); fIter++ ) //так работает map, это цикл по firstPointsDistances(1я map)
     {
         for (auto sIter = secondPointsDistances.begin(); sIter != secondPointsDistances.end(); sIter++)
         {
-            int correlation = GetCorelation(fIter->second, sIter->second);
+            int correlation = GetCorelation(fIter->second, sIter->second); //находим точек у которых наибольшее количество одинаковых дистанций
             if (correlation > bestCorelation)
             {
                 bestPointF = fIter->first;
@@ -177,7 +178,7 @@ Mat MainPointConcatenation(Mat first, Mat second)
     // Поиск общей точки
     vector<Point2i> jointPoint = FindBestPoint(firstPoints, secondPoints);
     
-    DrawPoint(&first, jointPoint[0].x, jointPoint[0].y, Vec3i(0,255,0));
+    DrawPoint(&first, jointPoint[0].x, jointPoint[0].y, Vec3i(0,255,0)); //рисуем общую (зелёную) точку
     DrawPoint(&second, jointPoint[1].x, jointPoint[1].y, Vec3i(0,255,0));
     
     imshow("First Point", first);
@@ -185,7 +186,6 @@ Mat MainPointConcatenation(Mat first, Mat second)
     
     return GluePictures(first, second, jointPoint[0].x, jointPoint[1].x);
     
-    // return GluePictures(first, second, first.cols-135);
 }
 
 int main()
@@ -197,13 +197,6 @@ int main()
     Mat second = imread("/Users/mythings/Documents/С++/repocpp/OpenCV.0/OpenCV.0/2.jpg");
     imshow("second part", second); //вывод оригинального изображения 2
     
-    //imshow("test", GluePictures(first, second, first.cols-135));
-    
-    
-    // Not work
-    /*
-    Mat simpleRes = VerySimpleСoncatenation(first, second);
-    imshow("simpleRes", simpleRes);*/
     
     imshow("Result", MainPointConcatenation(first, second));
     
